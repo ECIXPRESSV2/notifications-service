@@ -1,4 +1,5 @@
 import { ChannelType } from '../notifications/notification.enums';
+import { EmailAttachment } from '../channels/channel.interface';
 import { formatCop } from '../common/format.util';
 import { ConsumedEvents } from './event-patterns';
 import {
@@ -50,11 +51,29 @@ export interface BuiltNotification {
   body: string;
   channels: ChannelType[];
   data?: Record<string, unknown>;
+  /** Adjuntos de correo (p. ej. el comprobante de pago). No se persisten en la notificación. */
+  attachments?: EmailAttachment[];
   /** Semilla para la clave de idempotencia si el evento no trae `idempotencyKey`. */
   dedupSeed: string;
 }
 
 type Builder = (payload: any) => BuiltNotification | null;
+
+/** Normaliza el comprobante que adjunta Financial a la lista de adjuntos del correo. */
+function receiptToAttachments(receipt?: {
+  filename?: string;
+  contentType?: string;
+  contentBase64?: string;
+}): EmailAttachment[] | undefined {
+  if (!receipt?.contentBase64) return undefined;
+  return [
+    {
+      filename: receipt.filename ?? 'comprobante.pdf',
+      contentType: receipt.contentType ?? 'application/pdf',
+      contentBase64: receipt.contentBase64,
+    },
+  ];
+}
 
 const { EMAIL, WHATSAPP, SMS, REALTIME } = ChannelType;
 
@@ -305,6 +324,8 @@ export const NotificationCatalog: Record<string, Builder> = {
       body: `Tu billetera fue recargada por ${formatCop(p.amount)}.`,
       channels: [EMAIL, WHATSAPP, SMS, REALTIME],
       data: { topupId: p.topupId, amount: p.amount },
+      // Comprobante de la recarga adjunto al correo.
+      attachments: receiptToAttachments(p.receipt),
       dedupSeed: p.topupId ?? p.userId,
     };
   },
@@ -336,8 +357,11 @@ export const NotificationCatalog: Record<string, Builder> = {
       type: 'payment.processed',
       title: 'Pago exitoso',
       body: `Se procesó el pago${p.totalCharged ? ` de ${formatCop(p.totalCharged)}` : ''} de tu pedido ${p.orderId}.`,
-      channels: [WHATSAPP, REALTIME],
+      // Se añade EMAIL para enviar el comprobante de pago del pedido.
+      channels: [EMAIL, WHATSAPP, REALTIME],
       data: { orderId: p.orderId, totalCharged: p.totalCharged },
+      // Comprobante del pago adjunto al correo.
+      attachments: receiptToAttachments(p.receipt),
       dedupSeed: p.orderId,
     };
   },

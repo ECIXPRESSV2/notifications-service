@@ -30,13 +30,13 @@
   <div class="wrapper">
     <div class="header">
       <div style="color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.5px;">ECI<span style="color:#a0c4ff;">Express</span></div>
-      <div class="header-title">Billetera Digital</div>
+      <div class="header-title">Pago de pedido</div>
     </div>
 
     <div class="hero">
-      <div class="hero-icon">💳</div>
-      <div class="hero-amount">{{amountFormatted}}</div>
-      <div class="hero-label">Recarga exitosa</div>
+      <div class="hero-icon">&#128722;</div>
+      <div class="hero-amount">&#10003;</div>
+      <div class="hero-label">Pago exitoso</div>
     </div>
 
     <div class="body">
@@ -47,25 +47,25 @@
 
       <div class="detail-box">
         <div class="detail-row">
-          <span class="detail-label">Monto recargado</span>
-          <span class="detail-value">{{amountFormatted}}</span>
+          <span class="detail-label">Pedido</span>
+          <span class="detail-value" style="font-size:12px;font-family:monospace;">{{orderId}}</span>
         </div>
         <div class="detail-row">
           <span class="detail-label">Estado</span>
-          <span class="detail-value" style="color:#16a34a;">&#10003; Aprobado</span>
+          <span class="detail-value" style="color:#16a34a;">&#10003; Pagado</span>
         </div>
         <div class="detail-row">
-          <span class="detail-label">ID de transacción</span>
-          <span class="detail-value" style="font-size:12px;font-family:monospace;">{{topupId}}</span>
+          <span class="detail-label">Método de pago</span>
+          <span class="detail-value">Billetera ECIExpress</span>
         </div>
       </div>
 
       <div class="attach-note">
-        &#128206; Adjuntamos tu comprobante de recarga a este correo.
+        &#128206; Adjuntamos tu comprobante de pago a este correo.
       </div>
 
       <div class="cta">
-        <a href="{{frontendUrl}}/profile">Ver mi billetera</a>
+        <a href="{{frontendUrl}}/orders">Ver mis pedidos</a>
       </div>
     </div>
 
