@@ -6,7 +6,7 @@ import { NotificationDelivery } from './entities/notification-delivery.entity';
 import { ChannelType, DeliveryStatus } from './notification.enums';
 import { QueryNotificationsDto } from './dto/query-notifications.dto';
 import { ChannelDispatcherService } from '../channels/channel-dispatcher.service';
-import { ChannelMessage } from '../channels/channel.interface';
+import { ChannelMessage, EmailAttachment } from '../channels/channel.interface';
 import { RecipientsService } from '../recipients/recipients.service';
 import { PreferencesService } from '../preferences/preferences.service';
 import { NotificationLogger } from '../common/logger/notification.logger';
@@ -27,6 +27,8 @@ export interface DispatchRequest {
   title: string;
   body: string;
   data?: Record<string, unknown> | null;
+  /** Adjuntos de correo. No se persisten en la notificación; solo van al canal EMAIL. */
+  attachments?: EmailAttachment[] | null;
   sourceEvent?: string | null;
   sourceService?: string | null;
   dedupKey?: string | null;
@@ -107,6 +109,7 @@ export class NotificationsService {
       title: built.title,
       body: built.body,
       data: built.data,
+      attachments: built.attachments,
       sourceEvent: routingKey,
       sourceService: routingKey.split('.')[0],
       dedupKey,
@@ -278,6 +281,7 @@ export class NotificationsService {
           sourceEvent: req.sourceEvent ?? null,
           recipientName: recipient?.fullName ?? null,
           destination: req.emailOverride ?? recipient?.email ?? null,
+          attachments: req.attachments ?? null,
         };
       case ChannelType.WHATSAPP:
       case ChannelType.SMS:

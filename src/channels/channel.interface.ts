@@ -4,10 +4,23 @@ import {
 } from '../notifications/notification.enums';
 
 /**
+ * Adjunto de correo. `contentBase64` es el contenido del archivo codificado en base64.
+ * Lo produce quien origina el evento (p. ej. financial adjunta el comprobante de pago)
+ * y viaja fuera de `data` para no persistirse en la notificación in-app.
+ */
+export interface EmailAttachment {
+  filename: string;
+  contentType: string;
+  contentBase64: string;
+}
+
+/**
  * Mensaje ya renderizado que se entrega a un canal para su envío. El dispatcher
  * resuelve el destino concreto (email/teléfono/tokens) antes de invocar el canal.
  */
 export interface ChannelMessage {
+  /** Adjuntos del correo (solo los usa el canal EMAIL). */
+  attachments?: EmailAttachment[] | null;
   /** Destino directo para EMAIL/SMS/WHATSAPP (correo o teléfono E.164). */
   destination?: string | null;
   /** Id de usuario para emitir por el canal REALTIME (sala = userId). */
