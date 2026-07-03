@@ -9,6 +9,7 @@ import {
 import {
   ChannelMessage,
   ChannelResult,
+  EmailAttachment,
   NotificationChannel,
 } from './channel.interface';
 import { TemplateService } from './template.service';
@@ -37,9 +38,11 @@ export class EmailChannel implements NotificationChannel {
       ? this.templates.render(message.sourceEvent, this.buildTemplateVars(message))
       : null;
 
+    const attachments = message.attachments ?? [];
+
     if (!clientId || !clientSecret || !refreshToken) {
       this.logger.log(
-        `[SANDBOX EMAIL] a=${message.destination} asunto="${message.title}" template=${message.sourceEvent ?? 'none'}`,
+        `[SANDBOX EMAIL] a=${message.destination} asunto="${message.title}" template=${message.sourceEvent ?? 'none'} adjuntos=${attachments.length}`,
       );
       return { status: DeliveryStatus.SENT, provider: 'sandbox' };
     }
@@ -54,6 +57,7 @@ export class EmailChannel implements NotificationChannel {
         subject: message.title,
         html: html ?? undefined,
         text: !html ? message.body : undefined,
+        attachments,
       });
       return { status: DeliveryStatus.SENT, provider: 'gmail-api', providerMessageId: messageId };
     } catch (error) {
@@ -86,6 +90,7 @@ interface GmailSendOptions {
   subject: string;
   html?: string;
   text?: string;
+  attachments?: EmailAttachment[];
 }
 
 export async function sendViaGmailApi(opts: GmailSendOptions): Promise<string> {
@@ -94,18 +99,7 @@ export async function sendViaGmailApi(opts: GmailSendOptions): Promise<string> {
 
   const gmail = google.gmail({ version: 'v1', auth });
 
-  const contentType = opts.html ? 'text/html' : 'text/plain';
-  const body = opts.html ?? opts.text ?? '';
-
-  const rawLines = [
-    `From: ${opts.from}`,
-    `To: ${opts.to}`,
-    `Subject: ${opts.subject}`,
-    `MIME-Version: 1.0`,
-    `Content-Type: ${contentType}; charset=UTF-8`,
-    ``,
-    body,
-  ].join('\r\n');
+  const rawLines = buildRawMessage(opts);
 
   const encoded = Buffer.from(rawLines)
     .toString('base64')
@@ -119,4 +113,54 @@ export async function sendViaGmailApi(opts: GmailSendOptions): Promise<string> {
   });
 
   return res.data.id ?? '';
+}
+
+/** Construye el mensaje RFC 822: simple si no hay adjuntos, multipart/mixed si los hay. */
+function buildRawMessage(opts: GmailSendOptions): string {
+  const contentType = opts.html ? 'text/html' : 'text/plain';
+  const body = opts.html ?? opts.text ?? '';
+  const attachments = opts.attachments ?? [];
+
+  if (attachments.length === 0) {
+    return [
+      `From: ${opts.from}`,
+      `To: ${opts.to}`,
+      `Subject: ${opts.subject}`,
+      `MIME-Version: 1.0`,
+      `Content-Type: ${contentType}; charset=UTF-8`,
+      ``,
+      body,
+    ].join('\r\n');
+  }
+
+  const boundary = `eciexpress_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
+  const lines = [
+    `From: ${opts.from}`,
+    `To: ${opts.to}`,
+    `Subject: ${opts.subject}`,
+    `MIME-Version: 1.0`,
+    `Content-Type: multipart/mixed; boundary="${boundary}"`,
+    ``,
+    `--${boundary}`,
+    `Content-Type: ${contentType}; charset=UTF-8`,
+    ``,
+    body,
+  ];
+
+  for (const att of attachments) {
+    // El contenido ya viene en base64; se reparte en líneas de 76 chars (MIME).
+    const wrapped = att.contentBase64.replace(/(.{76})/g, '$1\r\n');
+    lines.push(
+      ``,
+      `--${boundary}`,
+      `Content-Type: ${att.contentType}; name="${att.filename}"`,
+      `Content-Transfer-Encoding: base64`,
+      `Content-Disposition: attachment; filename="${att.filename}"`,
+      ``,
+      wrapped,
+    );
+  }
+
+  lines.push(``, `--${boundary}--`);
+  return lines.join('\r\n');
 }

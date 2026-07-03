@@ -9,11 +9,22 @@
  * payment.processed, payment.failed y refund.issued.
  */
 
+/**
+ * Comprobante de pago que Financial genera y adjunta al evento. El PDF viaja en
+ * base64 para adjuntarse al correo; NO se persiste en la notificación in-app.
+ */
+export interface ReceiptAttachmentPayload {
+  filename: string;
+  contentType: string;
+  contentBase64: string;
+}
+
 /** routing key: `financial.wallet.topup.approved` */
 export interface WalletTopupApprovedPayload {
   topupId?: string;
   userId?: string; // Financial ya lo incluye (dueño de la billetera recargada)
   amount: number; // centavos COP
+  receipt?: ReceiptAttachmentPayload; // comprobante de la recarga (adjunto del correo)
 }
 
 /** routing key: `financial.wallet.topup.failed` */
@@ -31,6 +42,7 @@ export interface PaymentProcessedPayload {
   userId?: string; // TODO: Financial debe incluir el buyerId/userId
   storeId?: string;
   totalCharged?: number;
+  receipt?: ReceiptAttachmentPayload; // comprobante del pago (adjunto del correo)
 }
 
 /** routing key: `financial.payment.failed` */
