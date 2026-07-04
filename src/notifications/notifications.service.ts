@@ -29,6 +29,8 @@ export interface DispatchRequest {
   data?: Record<string, unknown> | null;
   /** Adjuntos de correo. No se persisten en la notificación; solo van al canal EMAIL. */
   attachments?: EmailAttachment[] | null;
+  /** URL pública de una imagen a adjuntar en el mensaje (la usa el canal WHATSAPP). */
+  imageUrl?: string | null;
   sourceEvent?: string | null;
   sourceService?: string | null;
   dedupKey?: string | null;
@@ -110,6 +112,7 @@ export class NotificationsService {
       body: built.body,
       data: built.data,
       attachments: built.attachments,
+      imageUrl: built.imageUrl,
       sourceEvent: routingKey,
       sourceService: routingKey.split('.')[0],
       dedupKey,
@@ -272,6 +275,7 @@ export class NotificationsService {
       title: req.title,
       body: req.body,
       data: req.data ?? null,
+      imageUrl: req.imageUrl ?? null,
     };
 
     switch (channel) {

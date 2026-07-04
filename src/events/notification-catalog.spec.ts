@@ -16,14 +16,45 @@ describe('NotificationCatalog', () => {
     expect(built!.title).toContain('Bienvenido');
   });
 
-  it('mapea order.confirmed con monto formateado e incluye WhatsApp', () => {
+  it('omite (null) order.confirmed: la confirmación se comunica con el QR', () => {
     const built = NotificationCatalog[ConsumedEvents.ORDER_CONFIRMED]({
       orderId: 'o1',
       buyerId: 'u2',
     });
+    expect(built).toBeNull();
+  });
+
+  it('omite (null) order.status_changed: no notifica por cada cambio de estado', () => {
+    const built = NotificationCatalog[ConsumedEvents.ORDER_STATUS_CHANGED]({
+      orderId: 'o1',
+      buyerId: 'u2',
+      status: 'READY_FOR_PICKUP',
+    });
+    expect(built).toBeNull();
+  });
+
+  it('mapea fulfillment.qr.generated como el mensaje de confirmado con imagen del QR', () => {
+    const built = NotificationCatalog[ConsumedEvents.QR_GENERATED]({
+      orderId: 'o1',
+      buyerId: 'u2',
+      imageUrl: 'https://blob/qr.png?sas',
+      shortCode: 'A7K9-P2MX',
+    });
     expect(built!.userId).toBe('u2');
     expect(built!.channels).toContain(ChannelType.WHATSAPP);
+    expect(built!.imageUrl).toBe('https://blob/qr.png?sas');
     expect(built!.dedupSeed).toBe('o1');
+  });
+
+  it('mapea fulfillment.delivery.confirmed con la imagen del comprobante de entrega', () => {
+    const built = NotificationCatalog[ConsumedEvents.DELIVERY_CONFIRMED]({
+      orderId: 'o1',
+      buyerId: 'u2',
+      imageUrl: 'https://host/fulfillment/delivery/o1.png',
+    });
+    expect(built!.userId).toBe('u2');
+    expect(built!.channels).toContain(ChannelType.WHATSAPP);
+    expect(built!.imageUrl).toBe('https://host/fulfillment/delivery/o1.png');
   });
 
   it('dirige payment.released al dueño de la tienda (audience store)', () => {
