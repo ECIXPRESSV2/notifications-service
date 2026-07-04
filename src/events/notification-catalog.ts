@@ -51,6 +51,11 @@ export interface BuiltNotification {
   body: string;
   channels: ChannelType[];
   data?: Record<string, unknown>;
+  /**
+   * URL pública de una imagen a adjuntar en el mensaje (WhatsApp la descarga y la usa `body`
+   * como caption). P. ej. el QR de retiro o el comprobante de entrega.
+   */
+  imageUrl?: string;
   /** Adjuntos de correo (p. ej. el comprobante de pago). No se persisten en la notificación. */
   attachments?: EmailAttachment[];
   /** Semilla para la clave de idempotencia si el evento no trae `idempotencyKey`. */
@@ -221,16 +226,10 @@ export const NotificationCatalog: Record<string, Builder> = {
     dedupSeed: p.orderId,
   }),
 
-  [ConsumedEvents.ORDER_CONFIRMED]: (p: OrderConfirmedPayload) => ({
-    audience: 'user',
-    userId: p.buyerId,
-    type: 'order.confirmed',
-    title: 'Pedido confirmado',
-    body: `Tu pedido ${p.orderId} fue pagado y está siendo preparado para el despacho.`,
-    channels: [EMAIL, WHATSAPP, REALTIME],
-    data: { orderId: p.orderId },
-    dedupSeed: p.orderId,
-  }),
+  // Sin notificación propia: la confirmación del pedido se comunica con UN solo mensaje que
+  // lleva el QR de retiro (ver `fulfillment.qr.generated`, que Fulfillment emite justo al
+  // confirmarse). Evita el doble aviso "pedido confirmado" + "tu QR" en el mismo instante.
+  [ConsumedEvents.ORDER_CONFIRMED]: (_p: OrderConfirmedPayload) => null,
 
   [ConsumedEvents.ORDER_CANCELLED]: (p: OrderCancelledPayload) => ({
     audience: 'user',
@@ -243,16 +242,12 @@ export const NotificationCatalog: Record<string, Builder> = {
     dedupSeed: p.orderId,
   }),
 
-  [ConsumedEvents.ORDER_STATUS_CHANGED]: (p: OrderStatusChangedPayload) => ({
-    audience: 'user',
-    userId: p.buyerId,
-    type: 'order.status_changed',
-    title: 'Actualización de tu pedido',
-    body: `El estado de tu pedido ${p.orderId} cambió a: ${p.status}.`,
-    channels: [WHATSAPP, REALTIME],
-    data: { orderId: p.orderId, status: p.status },
-    dedupSeed: `${p.orderId}:${p.status}`,
-  }),
+  // Sin notificación por cada cambio de estado: el front ya muestra la línea de tiempo del
+  // pedido, así que no se satura al usuario con un mensaje por transición. Los dos momentos que
+  // sí generan mensaje —CONFIRMED y DELIVERED— los cubren eventos propios de Fulfillment con su
+  // imagen: `fulfillment.qr.generated` (QR al confirmar) y `fulfillment.delivery.confirmed`
+  // (comprobante al entregar). El resto de estados no notifica.
+  [ConsumedEvents.ORDER_STATUS_CHANGED]: (_p: OrderStatusChangedPayload) => null,
 
   [ConsumedEvents.CHAT_MESSAGE_SENT]: (p: ChatMessageSentPayload) => ({
     audience: 'user',
@@ -269,17 +264,23 @@ export const NotificationCatalog: Record<string, Builder> = {
   }),
 
   // ------------------------------------------------------------- Fulfillment
+  // Mensaje ÚNICO de confirmación del pedido: Fulfillment emite este evento justo al confirmarse
+  // (genera el código de retiro). Un solo WhatsApp con la imagen del QR y el texto de confirmación
+  // como caption; también correo e in-app. Sustituye al aviso genérico "pedido confirmado".
   [ConsumedEvents.QR_GENERATED]: (p: QrGeneratedPayload) => ({
     audience: 'user',
     userId: p.buyerId,
-    type: 'delivery.qr_generated',
-    title: 'Tu código de entrega está listo',
-    body: `Presenta este código QR al recibir tu pedido ${p.orderId}.`,
-    channels: [EMAIL, WHATSAPP],
-    data: { orderId: p.orderId, qrCode: p.qrCode },
+    type: 'order.confirmed',
+    title: '¡Pedido confirmado!',
+    body: `Tu pedido ${p.orderId} fue confirmado. Presenta este código QR en la tienda para recibirlo${p.shortCode ? ` o dicta el código ${p.shortCode}` : ''}.`,
+    channels: [EMAIL, WHATSAPP, REALTIME],
+    imageUrl: p.imageUrl ?? p.qrCode,
+    data: { orderId: p.orderId, qrCode: p.qrCode, shortCode: p.shortCode, expiresAt: p.expiresAt },
     dedupSeed: p.orderId,
   }),
 
+  // Mensaje de entrega: un solo WhatsApp con el comprobante genérico (imagen con el ID del pedido
+  // impreso) y el texto como caption; también correo e in-app.
   [ConsumedEvents.DELIVERY_CONFIRMED]: (p: DeliveryConfirmedPayload) => ({
     audience: 'user',
     userId: p.buyerId,
@@ -287,6 +288,7 @@ export const NotificationCatalog: Record<string, Builder> = {
     title: 'Entrega confirmada',
     body: `Confirmamos la entrega de tu pedido ${p.orderId}. ¡Gracias por comprar en ECIExpress!`,
     channels: [EMAIL, WHATSAPP, REALTIME],
+    imageUrl: p.imageUrl,
     data: { orderId: p.orderId },
     dedupSeed: p.orderId,
   }),
