@@ -215,16 +215,11 @@ export const NotificationCatalog: Record<string, Builder> = {
   },
 
   // ------------------------------------------------------------------- Order
-  [ConsumedEvents.ORDER_CREATED]: (p: OrderCreatedPayload) => ({
-    audience: 'user',
-    userId: p.buyerId,
-    type: 'order.created',
-    title: 'Pedido creado',
-    body: `Tu pedido ${p.orderId} fue creado${p.totalAmount ? ` por ${formatCop(p.totalAmount)}` : ''} y está pendiente de pago.`,
-    channels: [EMAIL, WHATSAPP, REALTIME],
-    data: { orderId: p.orderId },
-    dedupSeed: p.orderId,
-  }),
+  // Sin notificación: el aviso "pedido creado / pendiente de pago" se consideró ruido
+  // (llega antes de que el pedido siquiera se confirme). El usuario recibe primero el
+  // "Pago exitoso" (financial.payment.processed) y luego la confirmación con el QR de
+  // retiro (fulfillment.qr.generated). No se notifica la creación por ningún canal.
+  [ConsumedEvents.ORDER_CREATED]: (_p: OrderCreatedPayload) => null,
 
   // Sin notificación propia: la confirmación del pedido se comunica con UN solo mensaje que
   // lleva el QR de retiro (ver `fulfillment.qr.generated`, que Fulfillment emite justo al

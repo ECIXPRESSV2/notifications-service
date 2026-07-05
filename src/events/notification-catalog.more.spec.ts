@@ -19,8 +19,9 @@ describe('NotificationCatalog · builders', () => {
   });
 
   it('order: created, cancelled y chat.message', () => {
-    const created = NotificationCatalog[ConsumedEvents.ORDER_CREATED]({ orderId: 'o1', buyerId: 'u1', totalAmount: 1500000 })!;
-    expect(created.body).toContain('$15.000');
+    // order.created ya no genera notificación: el aviso "pendiente de pago" se eliminó
+    // (el usuario recibe "Pago exitoso" y luego la confirmación con el QR).
+    expect(NotificationCatalog[ConsumedEvents.ORDER_CREATED]({ orderId: 'o1', buyerId: 'u1', totalAmount: 1500000 })).toBeNull();
     expect(NotificationCatalog[ConsumedEvents.ORDER_CANCELLED]({ orderId: 'o1', buyerId: 'u1' })!.type).toBe('order.cancelled');
     const chat = NotificationCatalog[ConsumedEvents.CHAT_MESSAGE_SENT]({ conversationId: 'c1', messageId: 'm1', recipientId: 'u1', preview: 'hola' })!;
     expect(chat.channels).toEqual([ChannelType.REALTIME]);
