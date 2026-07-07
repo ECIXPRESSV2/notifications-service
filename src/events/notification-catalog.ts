@@ -244,19 +244,10 @@ export const NotificationCatalog: Record<string, Builder> = {
   // (comprobante al entregar). El resto de estados no notifica.
   [ConsumedEvents.ORDER_STATUS_CHANGED]: (_p: OrderStatusChangedPayload) => null,
 
-  [ConsumedEvents.CHAT_MESSAGE_SENT]: (p: ChatMessageSentPayload) => ({
-    audience: 'user',
-    userId: p.recipientId,
-    type: 'chat.message',
-    title: 'Nuevo mensaje',
-    body: p.preview
-      ? `Tienes un nuevo mensaje: "${p.preview}"`
-      : 'Tienes un nuevo mensaje en tu chat de ECIExpress.',
-    // El chat es comunicación interna de la app; solo notificación en tiempo real.
-    channels: [REALTIME],
-    data: { conversationId: p.conversationId, messageId: p.messageId },
-    dedupSeed: p.messageId ?? `${p.conversationId}:${Date.now()}`,
-  }),
+  // Ya NO genera notificación (ni siquiera en tiempo real): un mensaje nuevo se ve como
+  // contador de no-leídos en la propia burbuja de mensajes (orders-service lo empuja por
+  // WebSocket a `user:<id>` vía `conversation:updated`), no como entrada en la campana.
+  [ConsumedEvents.CHAT_MESSAGE_SENT]: (_p: ChatMessageSentPayload) => null,
 
   // ------------------------------------------------------------- Fulfillment
   // Mensaje ÚNICO de confirmación del pedido: Fulfillment emite este evento justo al confirmarse
