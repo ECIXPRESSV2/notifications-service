@@ -221,10 +221,18 @@ export const NotificationCatalog: Record<string, Builder> = {
   // retiro (fulfillment.qr.generated). No se notifica la creación por ningún canal.
   [ConsumedEvents.ORDER_CREATED]: (_p: OrderCreatedPayload) => null,
 
-  // Sin notificación propia: la confirmación del pedido se comunica con UN solo mensaje que
-  // lleva el QR de retiro (ver `fulfillment.qr.generated`, que Fulfillment emite justo al
-  // confirmarse). Evita el doble aviso "pedido confirmado" + "tu QR" en el mismo instante.
-  [ConsumedEvents.ORDER_CONFIRMED]: (_p: OrderConfirmedPayload) => null,
+  // Confirmación del pedido: mensaje independiente del QR (Fulfillment a veces falla o se
+  // retrasa). El QR de retiro llega en `fulfillment.qr.generated` como segundo mensaje.
+  [ConsumedEvents.ORDER_CONFIRMED]: (p: OrderConfirmedPayload) => ({
+    audience: 'user',
+    userId: p.buyerId,
+    type: 'order.confirmed',
+    title: '¡Pedido confirmado!',
+    body: `Tu pedido ${p.orderId} fue confirmado. Te notificaremos cuando el código de retiro esté listo.`,
+    channels: [EMAIL, WHATSAPP, REALTIME],
+    data: { orderId: p.orderId, storeId: p.storeId, pickupExpiresAt: p.pickupExpiresAt },
+    dedupSeed: p.orderId,
+  }),
 
   [ConsumedEvents.ORDER_CANCELLED]: (p: OrderCancelledPayload) => ({
     audience: 'user',
@@ -238,10 +246,9 @@ export const NotificationCatalog: Record<string, Builder> = {
   }),
 
   // Sin notificación por cada cambio de estado: el front ya muestra la línea de tiempo del
-  // pedido, así que no se satura al usuario con un mensaje por transición. Los dos momentos que
-  // sí generan mensaje —CONFIRMED y DELIVERED— los cubren eventos propios de Fulfillment con su
-  // imagen: `fulfillment.qr.generated` (QR al confirmar) y `fulfillment.delivery.confirmed`
-  // (comprobante al entregar). El resto de estados no notifica.
+  // pedido, así que no se satura al usuario con un mensaje por transición. CONFIRMED se notifica
+  // desde `order.order.confirmed` y el QR desde `fulfillment.qr.generated`. DELIVERED se
+  // notifica desde `fulfillment.delivery.confirmed`. El resto de estados no notifica.
   [ConsumedEvents.ORDER_STATUS_CHANGED]: (_p: OrderStatusChangedPayload) => null,
 
   // Ya NO genera notificación (ni siquiera en tiempo real): un mensaje nuevo se ve como
@@ -250,15 +257,14 @@ export const NotificationCatalog: Record<string, Builder> = {
   [ConsumedEvents.CHAT_MESSAGE_SENT]: (_p: ChatMessageSentPayload) => null,
 
   // ------------------------------------------------------------- Fulfillment
-  // Mensaje ÚNICO de confirmación del pedido: Fulfillment emite este evento justo al confirmarse
-  // (genera el código de retiro). Un solo WhatsApp con la imagen del QR y el texto de confirmación
-  // como caption; también correo e in-app. Sustituye al aviso genérico "pedido confirmado".
+  // QR de retiro listo: segundo mensaje después de la confirmación. Lleva la imagen del QR
+  // y el código corto para dictar en tienda.
   [ConsumedEvents.QR_GENERATED]: (p: QrGeneratedPayload) => ({
     audience: 'user',
     userId: p.buyerId,
-    type: 'order.confirmed',
-    title: '¡Pedido confirmado!',
-    body: `Tu pedido ${p.orderId} fue confirmado. Presenta este código QR en la tienda para recibirlo${p.shortCode ? ` o dicta el código ${p.shortCode}` : ''}.`,
+    type: 'pickup.qr_ready',
+    title: 'Código de retiro listo',
+    body: `Tu código QR para retirar el pedido ${p.orderId} ya está listo. Preséntalo en la tienda${p.shortCode ? ` o dicta el código ${p.shortCode}` : ''} para recibir tu compra.`,
     channels: [EMAIL, WHATSAPP, REALTIME],
     imageUrl: p.imageUrl ?? p.qrCode,
     data: { orderId: p.orderId, qrCode: p.qrCode, shortCode: p.shortCode, expiresAt: p.expiresAt },

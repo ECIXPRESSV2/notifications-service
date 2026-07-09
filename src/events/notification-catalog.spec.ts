@@ -16,12 +16,18 @@ describe('NotificationCatalog', () => {
     expect(built!.title).toContain('Bienvenido');
   });
 
-  it('omite (null) order.confirmed: la confirmación se comunica con el QR', () => {
+  it('mapea order.confirmed a notificación independiente del QR', () => {
     const built = NotificationCatalog[ConsumedEvents.ORDER_CONFIRMED]({
       orderId: 'o1',
       buyerId: 'u2',
+      storeId: 's1',
+      pickupExpiresAt: '2026-07-10T12:00:00Z',
     });
-    expect(built).toBeNull();
+    expect(built).not.toBeNull();
+    expect(built!.audience).toBe('user');
+    expect(built!.userId).toBe('u2');
+    expect(built!.type).toBe('order.confirmed');
+    expect(built!.dedupSeed).toBe('o1');
   });
 
   it('omite (null) order.status_changed: no notifica por cada cambio de estado', () => {
@@ -33,7 +39,7 @@ describe('NotificationCatalog', () => {
     expect(built).toBeNull();
   });
 
-  it('mapea fulfillment.qr.generated como el mensaje de confirmado con imagen del QR', () => {
+  it('mapea fulfillment.qr.generated como mensaje de código de retiro listo', () => {
     const built = NotificationCatalog[ConsumedEvents.QR_GENERATED]({
       orderId: 'o1',
       buyerId: 'u2',
@@ -41,6 +47,7 @@ describe('NotificationCatalog', () => {
       shortCode: 'A7K9-P2MX',
     });
     expect(built!.userId).toBe('u2');
+    expect(built!.type).toBe('pickup.qr_ready');
     expect(built!.channels).toContain(ChannelType.WHATSAPP);
     expect(built!.imageUrl).toBe('https://blob/qr.png?sas');
     expect(built!.dedupSeed).toBe('o1');
