@@ -19,8 +19,8 @@ export interface OrderCreatedPayload {
 export interface OrderConfirmedPayload {
   orderId: string;
   buyerId: string;
-  storeId?: string;
-  totalAmount?: number;
+  storeId: string;
+  pickupExpiresAt?: string;
 }
 
 /** routing key: `order.order.cancelled` */
