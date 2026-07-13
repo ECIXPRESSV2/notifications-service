@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
+import { google } from 'googleapis';
 import { sendViaGmailApi } from '../channels/email.channel';
 
 interface ServiceCheck {
@@ -121,7 +122,9 @@ export class WakeupService {
     }
 
     try {
-      await sendViaGmailApi({ clientId, clientSecret, refreshToken, from, to, subject, html });
+      const auth = new google.auth.OAuth2(clientId, clientSecret);
+      auth.setCredentials({ refresh_token: refreshToken });
+      await sendViaGmailApi(auth, { from, to, subject, html });
       this.logger.log(`Reporte de wakeup enviado a ${to}.`);
     } catch (err) {
       this.logger.error(`Error al enviar el reporte de wakeup: ${err}`);

@@ -14,10 +14,21 @@ import {
 } from './channel.interface';
 import { TemplateService } from './template.service';
 
+type GmailAuthClient = InstanceType<typeof google.auth.OAuth2>;
+
 @Injectable()
 export class EmailChannel implements NotificationChannel {
   readonly type = ChannelType.EMAIL;
   private readonly logger = new Logger(EmailChannel.name);
+
+  // Cliente OAuth2 compartido entre TODOS los envíos (el canal es singleton en Nest). Antes
+  // se creaba un google.auth.OAuth2 nuevo por cada send(), así que nunca reutilizaba el
+  // access_token cacheado: cuando varios eventos de un mismo pedido disparaban correos casi
+  // simultáneos, cada llamada intentaba canjear el refresh_token en paralelo y Gmail
+  // respondía "invalid_grant" a algunas de esas canjes concurrentes. Reutilizar el cliente
+  // (y esperar el mismo refresh en curso, ver authReady) hace que solo se canjee una vez.
+  private authClient: GmailAuthClient | null = null;
+  private authReady: Promise<void> | null = null;
 
   constructor(
     private readonly config: ConfigService,
@@ -48,10 +59,8 @@ export class EmailChannel implements NotificationChannel {
     }
 
     try {
-      const messageId = await sendViaGmailApi({
-        clientId,
-        clientSecret,
-        refreshToken,
+      const auth = await this.getAuthClient(clientId, clientSecret, refreshToken);
+      const messageId = await sendViaGmailApi(auth, {
         from,
         to: message.destination,
         subject: message.title,
@@ -63,6 +72,26 @@ export class EmailChannel implements NotificationChannel {
     } catch (error) {
       return { status: DeliveryStatus.FAILED, provider: 'gmail-api', error: (error as Error).message };
     }
+  }
+
+  /** Crea el cliente OAuth2 una sola vez y lo reutiliza; si dos send() concurrentes lo
+   *  necesitan antes de que exista, ambos esperan la MISMA promesa de creación en vez de
+   *  canjear el refresh_token cada uno por su lado. */
+  private async getAuthClient(
+    clientId: string,
+    clientSecret: string,
+    refreshToken: string,
+  ): Promise<GmailAuthClient> {
+    if (this.authClient) return this.authClient;
+    if (!this.authReady) {
+      this.authReady = (async () => {
+        const client = new google.auth.OAuth2(clientId, clientSecret);
+        client.setCredentials({ refresh_token: refreshToken });
+        this.authClient = client;
+      })();
+    }
+    await this.authReady;
+    return this.authClient!;
   }
 
   private buildTemplateVars(message: ChannelMessage): Record<string, unknown> {
@@ -82,9 +111,6 @@ export class EmailChannel implements NotificationChannel {
 }
 
 interface GmailSendOptions {
-  clientId: string;
-  clientSecret: string;
-  refreshToken: string;
   from: string;
   to: string;
   subject: string;
@@ -93,10 +119,10 @@ interface GmailSendOptions {
   attachments?: EmailAttachment[];
 }
 
-export async function sendViaGmailApi(opts: GmailSendOptions): Promise<string> {
-  const auth = new google.auth.OAuth2(opts.clientId, opts.clientSecret);
-  auth.setCredentials({ refresh_token: opts.refreshToken });
-
+export async function sendViaGmailApi(
+  auth: GmailAuthClient,
+  opts: GmailSendOptions,
+): Promise<string> {
   const gmail = google.gmail({ version: 'v1', auth });
 
   const rawLines = buildRawMessage(opts);
