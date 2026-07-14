@@ -7,6 +7,7 @@
 export interface QrGeneratedPayload {
   orderId: string;
   buyerId: string;
+  orderNumber?: string;
   qrCode?: string; // contenido o URL del QR de entrega
   imageUrl?: string; // URL (SAS) del PNG del QR en el blob; se manda como imagen por WhatsApp
   shortCode?: string;
@@ -17,6 +18,7 @@ export interface QrGeneratedPayload {
 export interface DeliveryConfirmedPayload {
   orderId: string;
   buyerId: string;
+  orderNumber?: string;
   imageUrl?: string; // URL pública del comprobante de entrega; se manda como imagen por WhatsApp
 }
 
@@ -24,11 +26,13 @@ export interface DeliveryConfirmedPayload {
 export interface QrExpiredPayload {
   orderId: string;
   buyerId: string;
+  orderNumber?: string;
 }
 
 /** routing key: `fulfillment.delivery.failed` */
 export interface DeliveryFailedPayload {
   orderId: string;
   buyerId: string;
+  orderNumber?: string;
   reason?: string;
 }

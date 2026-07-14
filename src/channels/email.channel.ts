@@ -128,8 +128,8 @@ export class EmailChannel implements NotificationChannel {
   private buildTemplateVars(message: ChannelMessage): Record<string, unknown> {
     const data = message.data ?? {};
     return {
-      title: message.title,
-      body: message.body,
+      title: TemplateService.toAsciiHtml(message.title),
+      body: TemplateService.toAsciiHtml(message.body),
       recipientName: message.recipientName ? ` ${message.recipientName}` : '',
       year: new Date().getFullYear(),
       frontendUrl: this.config.get<string>('app.frontendUrl') ?? '',
@@ -172,19 +172,28 @@ export async function sendViaGmailApi(
   return res.data.id ?? '';
 }
 
+/** Codifica el Subject con RFC 2047 (=?UTF-8?B?...) para caracteres no-ASCII. */
+function encodeSubject(subject: string): string {
+  if (/^[\x00-\x7F]*$/.test(subject)) return subject;
+  const encoded = Buffer.from(subject, 'utf-8').toString('base64');
+  return `=?UTF-8?B?${encoded}?=`;
+}
+
 /** Construye el mensaje RFC 822: simple si no hay adjuntos, multipart/mixed si los hay. */
 function buildRawMessage(opts: GmailSendOptions): string {
   const contentType = opts.html ? 'text/html' : 'text/plain';
   const body = opts.html ?? opts.text ?? '';
   const attachments = opts.attachments ?? [];
+  const subject = encodeSubject(opts.subject);
 
   if (attachments.length === 0) {
     return [
       `From: ${opts.from}`,
       `To: ${opts.to}`,
-      `Subject: ${opts.subject}`,
+      `Subject: ${subject}`,
       `MIME-Version: 1.0`,
       `Content-Type: ${contentType}; charset=UTF-8`,
+      `Content-Transfer-Encoding: 8bit`,
       ``,
       body,
     ].join('\r\n');
@@ -194,12 +203,13 @@ function buildRawMessage(opts: GmailSendOptions): string {
   const lines = [
     `From: ${opts.from}`,
     `To: ${opts.to}`,
-    `Subject: ${opts.subject}`,
+    `Subject: ${subject}`,
     `MIME-Version: 1.0`,
     `Content-Type: multipart/mixed; boundary="${boundary}"`,
     ``,
     `--${boundary}`,
     `Content-Type: ${contentType}; charset=UTF-8`,
+    `Content-Transfer-Encoding: 8bit`,
     ``,
     body,
   ];
