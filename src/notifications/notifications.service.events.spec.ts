@@ -20,8 +20,9 @@ function build() {
   };
   const preferences: any = { isChannelEnabled: jest.fn().mockResolvedValue(true) };
   const logger: any = { logEvent: jest.fn(), warnEvent: jest.fn() };
+  const config: any = { get: jest.fn().mockReturnValue('') };
   const service = new NotificationsService(
-    notifications, deliveries, dispatcher, recipients, preferences, logger,
+    notifications, deliveries, dispatcher, recipients, preferences, logger, config,
   );
   return { service, notifications, dispatcher, recipients };
 }
