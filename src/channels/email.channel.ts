@@ -29,6 +29,13 @@ export class EmailChannel implements NotificationChannel {
   // (y esperar el mismo refresh en curso, ver authReady) hace que solo se canjee una vez.
   private authClient: GmailAuthClient | null = null;
   private authReady: Promise<void> | null = null;
+  // Reutilizar el cliente NO alcanza: gmail.users.messages.send() dispara su propio refresh
+  // interno si no ve un access_token cacheado todavía, y varias llamadas concurrentes sobre
+  // el MISMO cliente (recién creado, sin token cacheado aún) seguían canjeando el
+  // refresh_token en paralelo cada una por su lado. Este lock explícito garantiza que, por
+  // proceso, solo haya UN refresh en vuelo: las llamadas concurrentes esperan la misma
+  // promesa en vez de disparar cada una la suya.
+  private refreshInFlight: Promise<void> | null = null;
 
   constructor(
     private readonly config: ConfigService,
@@ -60,6 +67,7 @@ export class EmailChannel implements NotificationChannel {
 
     try {
       const auth = await this.getAuthClient(clientId, clientSecret, refreshToken);
+      await this.ensureAccessToken(auth);
       const messageId = await sendViaGmailApi(auth, {
         from,
         to: message.destination,
@@ -92,6 +100,29 @@ export class EmailChannel implements NotificationChannel {
     }
     await this.authReady;
     return this.authClient!;
+  }
+
+  /**
+   * Garantiza un access_token vigente ANTES de llamar a la API de Gmail. Reutilizar el
+   * cliente (getAuthClient) no bastaba: gmail.users.messages.send() dispara su propio
+   * refresh interno si no encuentra un access_token cacheado, y varias llamadas
+   * concurrentes sobre el mismo cliente recién creado (sin token todavía) igual canjeaban
+   * el refresh_token cada una por su lado. Aquí se fuerza el refresh explícitamente y las
+   * llamadas concurrentes esperan la MISMA promesa en vez de disparar cada una la suya.
+   */
+  private async ensureAccessToken(auth: GmailAuthClient): Promise<void> {
+    const creds = auth.credentials;
+    const stillValid =
+      !!creds.access_token && !!creds.expiry_date && creds.expiry_date > Date.now() + 60_000;
+    if (stillValid) return;
+
+    if (!this.refreshInFlight) {
+      this.refreshInFlight = auth
+        .getAccessToken()
+        .then(() => undefined)
+        .finally(() => { this.refreshInFlight = null; });
+    }
+    await this.refreshInFlight;
   }
 
   private buildTemplateVars(message: ChannelMessage): Record<string, unknown> {
