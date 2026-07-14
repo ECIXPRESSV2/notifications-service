@@ -352,7 +352,12 @@ export const NotificationCatalog: Record<string, Builder> = {
       title: 'Pago exitoso',
       body: `Se procesó el pago${p.totalCharged ? ` de ${formatCop(p.totalCharged)}` : ''} de tu pedido ${p.orderId}.`,
       // Se añade EMAIL para enviar el comprobante de pago del pedido.
-      channels: [EMAIL, WHATSAPP, REALTIME],
+      // WHATSAPP deliberadamente NO va aquí: payment.processed y order.confirmed se disparan
+      // ~2-3s seguidos para el mismo pedido, y el segundo mensaje de WhatsApp de esa ráfaga
+      // fallaba de forma consistente (401 Authentication Error) mientras el primero siempre
+      // pasaba. Se deja un solo WhatsApp por pedido en esta cascada (el de order.confirmed)
+      // para aislar si el problema era justamente ser "el segundo mensaje".
+      channels: [EMAIL, REALTIME],
       data: { orderId: p.orderId, totalCharged: p.totalCharged },
       // Comprobante del pago adjunto al correo.
       attachments: receiptToAttachments(p.receipt),
