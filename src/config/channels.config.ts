@@ -28,4 +28,5 @@ export const channelsConfig = registerAs('channels', () => ({
     authToken: process.env.TWILIO_AUTH_TOKEN,
     from: process.env.TWILIO_FROM,
   },
+  fulfillmentPublicUrl: process.env.FULFILLMENT_PUBLIC_URL ?? '',
 }));

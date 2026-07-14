@@ -80,6 +80,14 @@ function receiptToAttachments(receipt?: {
   ];
 }
 
+/** Referencia legible del pedido para mostrar al usuario: el número visible si existe,
+ *  o una versión abreviada del UUID (primeros 8 caracteres). */
+function orderRef(orderNumber?: string, orderId?: string): string {
+  if (orderNumber) return orderNumber;
+  if (orderId) return `#${orderId.slice(0, 8)}`;
+  return '';
+}
+
 const { EMAIL, WHATSAPP, SMS, REALTIME } = ChannelType;
 
 /**
@@ -228,9 +236,9 @@ export const NotificationCatalog: Record<string, Builder> = {
     userId: p.buyerId,
     type: 'order.confirmed',
     title: '¡Pedido confirmado!',
-    body: `Tu pedido ${p.orderId} fue confirmado. Te notificaremos cuando el código de retiro esté listo.`,
+    body: `Tu pedido ${orderRef(p.orderNumber, p.orderId)} fue confirmado. Te notificaremos cuando el código de retiro esté listo.`,
     channels: [EMAIL, WHATSAPP, REALTIME],
-    data: { orderId: p.orderId, storeId: p.storeId, pickupExpiresAt: p.pickupExpiresAt },
+    data: { orderId: p.orderId, orderNumber: p.orderNumber, storeId: p.storeId, pickupExpiresAt: p.pickupExpiresAt },
     dedupSeed: p.orderId,
   }),
 
@@ -239,9 +247,9 @@ export const NotificationCatalog: Record<string, Builder> = {
     userId: p.buyerId,
     type: 'order.cancelled',
     title: 'Pedido cancelado',
-    body: `Tu pedido ${p.orderId} fue cancelado. Si pagaste con tu billetera, el saldo será reintegrado.`,
+    body: `Tu pedido ${orderRef(p.orderNumber, p.orderId)} fue cancelado. Si pagaste con tu billetera, el saldo será reintegrado.`,
     channels: [EMAIL, WHATSAPP, REALTIME],
-    data: { orderId: p.orderId },
+    data: { orderId: p.orderId, orderNumber: p.orderNumber },
     dedupSeed: p.orderId,
   }),
 
@@ -264,10 +272,10 @@ export const NotificationCatalog: Record<string, Builder> = {
     userId: p.buyerId,
     type: 'pickup.qr_ready',
     title: 'Código de retiro listo',
-    body: `Tu código QR para retirar el pedido ${p.orderId} ya está listo. Preséntalo en la tienda${p.shortCode ? ` o dicta el código ${p.shortCode}` : ''} para recibir tu compra.`,
+    body: `Tu código QR para retirar el pedido ${orderRef(p.orderNumber, p.orderId)} ya está listo. Preséntalo en la tienda${p.shortCode ? ` o dicta el código ${p.shortCode}` : ''} para recibir tu compra.`,
     channels: [EMAIL, WHATSAPP, REALTIME],
     imageUrl: p.imageUrl ?? p.qrCode,
-    data: { orderId: p.orderId, qrCode: p.qrCode, shortCode: p.shortCode, expiresAt: p.expiresAt },
+    data: { orderId: p.orderId, orderNumber: p.orderNumber, qrCode: p.qrCode, shortCode: p.shortCode, expiresAt: p.expiresAt },
     dedupSeed: p.orderId,
   }),
 
@@ -278,10 +286,10 @@ export const NotificationCatalog: Record<string, Builder> = {
     userId: p.buyerId,
     type: 'delivery.confirmed',
     title: 'Entrega confirmada',
-    body: `Confirmamos la entrega de tu pedido ${p.orderId}. ¡Gracias por comprar en ECIExpress!`,
+    body: `Confirmamos la entrega de tu pedido ${orderRef(p.orderNumber, p.orderId)}. ¡Gracias por comprar en ECIExpress!`,
     channels: [EMAIL, WHATSAPP, REALTIME],
     imageUrl: p.imageUrl,
-    data: { orderId: p.orderId },
+    data: { orderId: p.orderId, orderNumber: p.orderNumber, imageUrl: p.imageUrl ?? '' },
     dedupSeed: p.orderId,
   }),
 
@@ -290,9 +298,9 @@ export const NotificationCatalog: Record<string, Builder> = {
     userId: p.buyerId,
     type: 'delivery.qr_expired',
     title: 'Tu código de entrega venció',
-    body: `El código QR del pedido ${p.orderId} venció sin usarse. Genera uno nuevo desde la app para completar la entrega.`,
+    body: `El código QR del pedido ${orderRef(p.orderNumber, p.orderId)} venció — producto no reclamado. Si crees que hay un error, comunícate con la tienda.`,
     channels: [EMAIL, WHATSAPP, REALTIME],
-    data: { orderId: p.orderId },
+    data: { orderId: p.orderId, orderNumber: p.orderNumber },
     dedupSeed: p.orderId,
   }),
 
@@ -301,9 +309,9 @@ export const NotificationCatalog: Record<string, Builder> = {
     userId: p.buyerId,
     type: 'delivery.failed',
     title: 'No pudimos completar tu entrega',
-    body: `Hubo un problema entregando tu pedido ${p.orderId}${p.reason ? `: ${p.reason}` : ''}. Te contactaremos para reprogramar.`,
+    body: `Hubo un problema entregando tu pedido ${orderRef(p.orderNumber, p.orderId)}${p.reason ? `: ${p.reason}` : ''}. Te contactaremos para reprogramar.`,
     channels: [EMAIL, WHATSAPP, REALTIME],
-    data: { orderId: p.orderId, reason: p.reason },
+    data: { orderId: p.orderId, orderNumber: p.orderNumber, reason: p.reason },
     dedupSeed: p.orderId,
   }),
 
@@ -350,7 +358,7 @@ export const NotificationCatalog: Record<string, Builder> = {
       userId: p.userId,
       type: 'payment.processed',
       title: 'Pago exitoso',
-      body: `Se procesó el pago${p.totalCharged ? ` de ${formatCop(p.totalCharged)}` : ''} de tu pedido ${p.orderId}.`,
+      body: `Se procesó el pago${p.totalCharged ? ` de ${formatCop(p.totalCharged)}` : ''} de tu pedido ${orderRef(p.orderNumber, p.orderId)}.`,
       // Se añade EMAIL para enviar el comprobante de pago del pedido.
       // WHATSAPP deliberadamente NO va aquí: payment.processed y order.confirmed se disparan
       // ~2-3s seguidos para el mismo pedido, y el segundo mensaje de WhatsApp de esa ráfaga
@@ -358,7 +366,7 @@ export const NotificationCatalog: Record<string, Builder> = {
       // pasaba. Se deja un solo WhatsApp por pedido en esta cascada (el de order.confirmed)
       // para aislar si el problema era justamente ser "el segundo mensaje".
       channels: [EMAIL, REALTIME],
-      data: { orderId: p.orderId, totalCharged: p.totalCharged },
+      data: { orderId: p.orderId, orderNumber: p.orderNumber, totalCharged: p.totalCharged },
       // Comprobante del pago adjunto al correo.
       attachments: receiptToAttachments(p.receipt),
       dedupSeed: p.orderId,
@@ -372,9 +380,9 @@ export const NotificationCatalog: Record<string, Builder> = {
       userId: p.userId,
       type: 'payment.failed',
       title: 'No pudimos procesar tu pago',
-      body: `El pago de tu pedido ${p.orderId} no pudo completarse${p.reason === 'INSUFFICIENT_FUNDS' ? ' por saldo insuficiente en tu billetera' : ''}.`,
+      body: `El pago de tu pedido ${orderRef(p.orderNumber, p.orderId)} no pudo completarse${p.reason === 'INSUFFICIENT_FUNDS' ? ' por saldo insuficiente en tu billetera' : ''}.`,
       channels: [EMAIL, WHATSAPP, REALTIME],
-      data: { orderId: p.orderId, reason: p.reason },
+      data: { orderId: p.orderId, orderNumber: p.orderNumber, reason: p.reason },
       dedupSeed: `${p.orderId}:failed`,
     };
   },
@@ -384,9 +392,9 @@ export const NotificationCatalog: Record<string, Builder> = {
     storeId: p.storeId,
     type: 'payout.released',
     title: 'Pago liberado',
-    body: `Se liberó el pago${p.storePayoutAmount ? ` de ${formatCop(p.storePayoutAmount)}` : ''} por el pedido ${p.orderId} tras confirmarse la entrega.`,
+      body: `Se liberó el pago${p.storePayoutAmount ? ` de ${formatCop(p.storePayoutAmount)}` : ''} por el pedido ${orderRef(p.orderNumber, p.orderId)} tras confirmarse la entrega.`,
     channels: [EMAIL, WHATSAPP, REALTIME],
-    data: { orderId: p.orderId, storePayoutAmount: p.storePayoutAmount },
+    data: { orderId: p.orderId, orderNumber: p.orderNumber, storePayoutAmount: p.storePayoutAmount },
     dedupSeed: `${p.orderId}:released`,
   }),
 
@@ -397,9 +405,9 @@ export const NotificationCatalog: Record<string, Builder> = {
       userId: p.userId,
       type: 'refund.issued',
       title: 'Reembolso procesado',
-      body: `Reintegramos${p.refundedAmount ? ` ${formatCop(p.refundedAmount)}` : ' el valor'} de tu pedido ${p.orderId} a tu billetera.`,
+      body: `Reintegramos${p.refundedAmount ? ` ${formatCop(p.refundedAmount)}` : ' el valor'} de tu pedido ${orderRef(p.orderNumber, p.orderId)} a tu billetera.`,
       channels: [EMAIL, WHATSAPP, REALTIME],
-      data: { orderId: p.orderId, refundedAmount: p.refundedAmount },
+      data: { orderId: p.orderId, orderNumber: p.orderNumber, refundedAmount: p.refundedAmount },
       dedupSeed: `${p.orderId}:refund`,
     };
   },
