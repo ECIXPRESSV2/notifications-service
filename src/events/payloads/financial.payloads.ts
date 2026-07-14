@@ -39,6 +39,7 @@ export interface WalletTopupFailedPayload {
 /** routing key: `financial.payment.processed` */
 export interface PaymentProcessedPayload {
   orderId: string;
+  orderNumber?: string;
   userId?: string; // TODO: Financial debe incluir el buyerId/userId
   storeId?: string;
   totalCharged?: number;
@@ -48,6 +49,7 @@ export interface PaymentProcessedPayload {
 /** routing key: `financial.payment.failed` */
 export interface PaymentFailedPayload {
   orderId: string;
+  orderNumber?: string;
   userId?: string; // TODO: Financial debe incluir el buyerId/userId
   storeId?: string;
   reason?: string;
@@ -56,6 +58,7 @@ export interface PaymentFailedPayload {
 /** routing key: `financial.payment.released` (desembolso liberado al negocio) */
 export interface PaymentReleasedPayload {
   orderId: string;
+  orderNumber?: string;
   storeId: string; // el dueño de la tienda recibe el aviso
   storePayoutAmount?: number;
 }
@@ -63,6 +66,7 @@ export interface PaymentReleasedPayload {
 /** routing key: `financial.refund.issued` */
 export interface RefundIssuedPayload {
   orderId: string;
+  orderNumber?: string;
   userId?: string; // TODO: Financial debe incluir el buyerId/userId
   refundedAmount?: number;
 }

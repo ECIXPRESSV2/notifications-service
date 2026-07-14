@@ -34,6 +34,15 @@ export class TemplateService {
   }
 
   /**
+   * Convierte caracteres no-ASCII a entidades HTML (&#N;) para que el
+   * mensaje MIME sea 100% ASCII y no dependa de la correcta interpretación
+   * del charset por parte del cliente de correo.
+   */
+  static toAsciiHtml(text: string): string {
+    return text.replace(/[^\x00-\x7F]/g, (c) => `&#${c.charCodeAt(0)};`);
+  }
+
+  /**
    * Convierte "financial.wallet.topup.approved"
    * en   "<dir>/financial/wallet.topup.approved.html"
    */

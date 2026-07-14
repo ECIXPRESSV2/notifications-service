@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, QueryFailedError, Repository } from 'typeorm';
 import { Notification } from './entities/notification.entity';
@@ -52,6 +53,7 @@ export class NotificationsService {
     private readonly recipients: RecipientsService,
     private readonly preferences: PreferencesService,
     private readonly logger: NotificationLogger,
+    private readonly config: ConfigService,
   ) {}
 
   // ============================================================ Entradas
@@ -104,6 +106,8 @@ export class NotificationsService {
       (payload.idempotencyKey as string | undefined) ??
       `${routingKey}:${built.dedupSeed}`;
 
+    built.imageUrl ??= this.defaultImageUrl(routingKey, payload);
+
     await this.dispatch({
       recipientUserId: userId,
       channels: built.channels,
@@ -134,6 +138,33 @@ export class NotificationsService {
       sourceService: 'notification',
       dedupKey: payload.dedupKey,
     });
+  }
+
+  private defaultImageUrl(routingKey: string, payload: Record<string, any>): string | undefined {
+    const orderId = payload.orderId as string | undefined;
+    if (!orderId) return undefined;
+
+    const baseUrl = this.config.get<string>('channels.fulfillmentPublicUrl', '');
+    if (!baseUrl) return undefined;
+
+    if (routingKey.includes('order.confirmed')) {
+      return `${baseUrl}/fulfillment/notification-image/confirmed/${orderId}.png`;
+    }
+    if (routingKey.includes('order.cancelled')) {
+      return `${baseUrl}/fulfillment/notification-image/cancelled/${orderId}.png`;
+    }
+    if (routingKey.includes('qr.expired')) {
+      return `${baseUrl}/fulfillment/notification-image/qr-expired/${orderId}.png`;
+    }
+    if (routingKey.includes('payment.processed')) {
+      const amount = payload.totalCharged ? String(payload.totalCharged) : '';
+      return `${baseUrl}/fulfillment/notification-image/payment-processed/${orderId}/${amount}.png`;
+    }
+    if (routingKey.includes('refund.issued')) {
+      const amount = payload.refundedAmount ? String(payload.refundedAmount) : '';
+      return `${baseUrl}/fulfillment/notification-image/refund-issued/${orderId}/${amount}.png`;
+    }
+    return undefined;
   }
 
   // ============================================================ Orquestación
