@@ -26,6 +26,14 @@ export interface QrExpiredPayload {
   buyerId: string;
 }
 
+/** routing key: `fulfillment.qr.expiring_soon` */
+export interface QrExpiringSoonPayload {
+  orderId: string;
+  buyerId: string;
+  storeId?: string;
+  expiresAt?: string;
+}
+
 /** routing key: `fulfillment.delivery.failed` */
 export interface DeliveryFailedPayload {
   orderId: string;

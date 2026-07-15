@@ -23,6 +23,7 @@ import {
   QrGeneratedPayload,
   DeliveryConfirmedPayload,
   QrExpiredPayload,
+  QrExpiringSoonPayload,
   DeliveryFailedPayload,
 } from './payloads/fulfillment.payloads';
 import {
@@ -294,6 +295,20 @@ export const NotificationCatalog: Record<string, Builder> = {
     channels: [EMAIL, WHATSAPP, REALTIME],
     data: { orderId: p.orderId },
     dedupSeed: p.orderId,
+  }),
+
+  // Aviso 5 minutos antes de que venza el QR (RN cancelación/reembolso): solo WhatsApp + SMS,
+  // a propósito sin EMAIL ni REALTIME — es una alerta urgente y de corta vida, no un mensaje
+  // para revisar después. Si vence sin usarse, no hay reembolso (ver QR_EXPIRED arriba).
+  [ConsumedEvents.QR_EXPIRING_SOON]: (p: QrExpiringSoonPayload) => ({
+    audience: 'user',
+    userId: p.buyerId,
+    type: 'delivery.qr_expiring_soon',
+    title: 'Tu código de retiro está por vencer',
+    body: `El código QR del pedido ${p.orderId} vence en 5 minutos. Recógelo antes de que expire; si vence, no habrá reembolso.`,
+    channels: [WHATSAPP, SMS],
+    data: { orderId: p.orderId, expiresAt: p.expiresAt },
+    dedupSeed: `${p.orderId}:expiring_soon`,
   }),
 
   [ConsumedEvents.DELIVERY_FAILED]: (p: DeliveryFailedPayload) => ({
