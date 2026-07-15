@@ -1,5 +1,6 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { databaseConfig } from './config/database.config';
 import { serviceBusConfig } from './config/service-bus.config';
@@ -24,6 +25,7 @@ import { WakeupModule } from './wakeup/wakeup.module';
       isGlobal: true,
       load: [databaseConfig, serviceBusConfig, channelsConfig, appConfig],
     }),
+    ScheduleModule.forRoot(),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
       // Entidades declaradas explícitamente en database.config (sin autoLoadEntities).

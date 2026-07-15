@@ -42,6 +42,10 @@ export interface DispatchRequest {
  * envíos directos), aplica idempotencia y preferencias, resuelve el destino de cada
  * canal, despacha a los proveedores y persiste el resultado de cada entrega.
  */
+/** Error de SKIPPED que sí amerita reintento: el socket no estaba conectado, no que el
+ *  usuario desactivó el canal (channel_disabled_by_user) — eso hay que respetarlo. */
+const RETRYABLE_SKIP_REASON = 'recipient_offline';
+
 @Injectable()
 export class NotificationsService {
   constructor(
@@ -201,6 +205,7 @@ export class NotificationsService {
           sourceEvent: req.sourceEvent ?? null,
           sourceService: req.sourceService ?? null,
           dedupKey: req.dedupKey ?? null,
+          imageUrl: req.imageUrl ?? null,
         }),
       );
     } catch (error) {
@@ -328,6 +333,84 @@ export class NotificationsService {
       default:
         return base;
     }
+  }
+
+  // ============================================================ Reintentos
+
+  /**
+   * Reintenta entregas recientes que quedaron en FAILED, o en SKIPPED por
+   * `recipient_offline` (el socket no estaba conectado — puede que ahora sí lo esté).
+   * NO reintenta SKIPPED por `channel_disabled_by_user`: eso es una decisión del usuario,
+   * no una falla transitoria. Acotado a los últimos `windowMinutes` para no revivir entregas
+   * viejas, y a `maxAttempts` para no reintentar por siempre algo que sigue fallando.
+   */
+  async retryStaleDeliveries(
+    windowMinutes: number,
+    maxAttempts: number,
+  ): Promise<{ retried: number; succeeded: number }> {
+    const cutoff = new Date(Date.now() - windowMinutes * 60_000);
+    const candidates = await this.deliveries
+      .createQueryBuilder('d')
+      .innerJoinAndSelect('d.notification', 'n')
+      .where('d.created_at >= :cutoff', { cutoff })
+      .andWhere('d.attempts < :maxAttempts', { maxAttempts })
+      .andWhere(
+        '(d.status = :failed OR (d.status = :skipped AND d.error = :retryableSkip))',
+        {
+          failed: DeliveryStatus.FAILED,
+          skipped: DeliveryStatus.SKIPPED,
+          retryableSkip: RETRYABLE_SKIP_REASON,
+        },
+      )
+      .getMany();
+
+    let succeeded = 0;
+    for (const delivery of candidates) {
+      const notification = delivery.notification;
+      const recipient = notification.recipientUserId
+        ? await this.recipients.findRecipient(notification.recipientUserId)
+        : null;
+      const message = this.buildChannelMessage(
+        delivery.channel,
+        {
+          recipientUserId: notification.recipientUserId,
+          channels: [delivery.channel],
+          type: notification.type,
+          title: notification.title,
+          body: notification.body,
+          data: notification.data,
+          imageUrl: notification.imageUrl,
+        },
+        recipient,
+      );
+
+      const result = await this.dispatcher.send(delivery.channel, message);
+      delivery.attempts += 1;
+      delivery.status = result.status;
+      delivery.provider = result.provider;
+      delivery.providerMessageId = result.providerMessageId ?? null;
+      delivery.error = result.error ?? null;
+      delivery.destination = maskDestination(
+        message.destination ?? message.userId ?? null,
+      );
+      if (result.status === DeliveryStatus.SENT) {
+        delivery.sentAt = new Date();
+        succeeded += 1;
+      }
+      await this.deliveries.save(delivery);
+
+      this.logger.logEvent(
+        'delivery.retried',
+        `Reintento ${delivery.channel} -> ${result.status}`,
+        {
+          notificationId: notification.id,
+          channel: delivery.channel,
+          attempts: delivery.attempts,
+          error: result.error,
+        },
+      );
+    }
+    return { retried: candidates.length, succeeded };
   }
 
   // ============================================================ Bandeja in-app

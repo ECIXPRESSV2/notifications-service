@@ -12,6 +12,7 @@ export type NotificationLogEvent =
   | 'delivery.sent'
   | 'delivery.failed'
   | 'delivery.skipped'
+  | 'delivery.retried'
   | 'recipient.upserted'
   | 'device.registered';
 

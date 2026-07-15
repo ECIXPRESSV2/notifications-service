@@ -34,6 +34,15 @@ describe('NotificationCatalog · builders', () => {
     expect(failed.body).toContain('nadie');
   });
 
+  it('fulfillment: qr_expiring_soon solo va por WhatsApp y SMS (sin correo ni tiempo real)', () => {
+    const warning = NotificationCatalog[ConsumedEvents.QR_EXPIRING_SOON]({
+      orderId: 'o1', buyerId: 'u1', storeId: 's1', expiresAt: '2026-07-14T12:00:00.000Z',
+    })!;
+    expect(warning.type).toBe('delivery.qr_expiring_soon');
+    expect(warning.channels).toEqual([ChannelType.WHATSAPP, ChannelType.SMS]);
+    expect(warning.body).toContain('5 minutos');
+  });
+
   it('financial: topup approved (con comprobante adjunto) y failed', () => {
     const approved = NotificationCatalog[ConsumedEvents.WALLET_TOPUP_APPROVED]({
       userId: 'u1', topupId: 't1', amount: 5000000,
