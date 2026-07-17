@@ -29,6 +29,7 @@ export const ConsumedEvents = {
   QR_GENERATED: 'fulfillment.qr.generated',
   DELIVERY_CONFIRMED: 'fulfillment.delivery.confirmed',
   QR_EXPIRED: 'fulfillment.qr.expired',
+  QR_EXPIRING_SOON: 'fulfillment.qr.expiring_soon',
   DELIVERY_FAILED: 'fulfillment.delivery.failed',
 
   // Financial

@@ -49,6 +49,10 @@ export class Notification {
   @Column({ type: 'jsonb', nullable: true })
   data?: Record<string, unknown> | null;
 
+  /** URL de imagen (QR, comprobante) — se persiste para poder reconstruirla en reintentos. */
+  @Column({ name: 'image_url', type: 'varchar', nullable: true })
+  imageUrl?: string | null;
+
   @Index('idx_notifications_dedup_key', { unique: true })
   @Column({ name: 'dedup_key', type: 'varchar', nullable: true })
   dedupKey?: string | null;
