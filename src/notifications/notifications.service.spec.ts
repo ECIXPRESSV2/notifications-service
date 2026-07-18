@@ -141,6 +141,7 @@ describe('NotificationsService', () => {
         resolveStoreOwner: jest.fn(),
       };
       const logger = { logEvent: jest.fn(), warnEvent: jest.fn() };
+      const config = { get: jest.fn().mockReturnValue('') };
       const service = new NotificationsService(
         {} as any,
         deliveries as any,
@@ -148,6 +149,7 @@ describe('NotificationsService', () => {
         recipients as any,
         { isChannelEnabled: jest.fn() } as any,
         logger as any,
+        config as any,
       );
       return { service, qb, dispatcher, saved };
     }
