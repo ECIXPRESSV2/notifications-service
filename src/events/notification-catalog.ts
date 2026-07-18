@@ -305,16 +305,18 @@ export const NotificationCatalog: Record<string, Builder> = {
     dedupSeed: p.orderId,
   }),
 
-  // Aviso 5 minutos antes de que venza el QR (RN cancelación/reembolso): solo WhatsApp + SMS,
-  // a propósito sin EMAIL ni REALTIME — es una alerta urgente y de corta vida, no un mensaje
-  // para revisar después. Si vence sin usarse, no hay reembolso (ver QR_EXPIRED arriba).
+  // Aviso 5 minutos antes de que venza el QR (RN cancelación/reembolso): WhatsApp + SMS +
+  // tiempo real, a propósito sin EMAIL — es una alerta urgente y de corta vida, no un
+  // mensaje para revisar después. Si vence sin usarse, no hay reembolso (ver QR_EXPIRED
+  // arriba). El body no lleva el orderId: en SMS, sumado al prefijo de cuenta trial de
+  // Twilio, superaba el límite de longitud del mensaje.
   [ConsumedEvents.QR_EXPIRING_SOON]: (p: QrExpiringSoonPayload) => ({
     audience: 'user',
     userId: p.buyerId,
     type: 'delivery.qr_expiring_soon',
     title: 'Tu código de retiro está por vencer',
-    body: `El código QR del pedido ${p.orderId} vence en 5 minutos. Recógelo antes de que expire; si vence, no habrá reembolso.`,
-    channels: [WHATSAPP, SMS],
+    body: 'Tienes un código QR por vencer, recógelo antes de que expire, no habrá reembolso.',
+    channels: [WHATSAPP, SMS, REALTIME],
     data: { orderId: p.orderId, expiresAt: p.expiresAt },
     dedupSeed: `${p.orderId}:expiring_soon`,
   }),
