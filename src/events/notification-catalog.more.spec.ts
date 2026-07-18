@@ -34,13 +34,15 @@ describe('NotificationCatalog · builders', () => {
     expect(failed.body).toContain('nadie');
   });
 
-  it('fulfillment: qr_expiring_soon solo va por WhatsApp y SMS (sin correo ni tiempo real)', () => {
+  it('fulfillment: qr_expiring_soon va por WhatsApp, SMS y tiempo real (sin correo)', () => {
     const warning = NotificationCatalog[ConsumedEvents.QR_EXPIRING_SOON]({
       orderId: 'o1', buyerId: 'u1', storeId: 's1', expiresAt: '2026-07-14T12:00:00.000Z',
     })!;
     expect(warning.type).toBe('delivery.qr_expiring_soon');
-    expect(warning.channels).toEqual([ChannelType.WHATSAPP, ChannelType.SMS]);
-    expect(warning.body).toContain('5 minutos');
+    expect(warning.channels).toEqual([ChannelType.WHATSAPP, ChannelType.SMS, ChannelType.REALTIME]);
+    // Sin orderId en el body: en SMS, sumado al prefijo de cuenta trial de Twilio, superaba
+    // el límite de longitud del mensaje.
+    expect(warning.body).not.toContain('o1');
   });
 
   it('financial: topup approved (con comprobante adjunto) y failed', () => {
